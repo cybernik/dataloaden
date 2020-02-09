@@ -67,12 +67,13 @@ type {{.Name}} struct {
 }
 
 type {{.Name|lcFirst}}Batch struct {
-	keys     []{{.KeyType}}
-	data     []{{.ValType.String}}
-	error    []error
-	closing  bool
-	done     chan struct{}
-	waitDone chan struct{}
+	keys      []{{.KeyType}}
+	data      []{{.ValType.String}}
+	error     []error
+	closing   bool
+	done      chan struct{}
+	waitDone  chan struct{}
+	waitCount int
 }
 
 // Load a {{.ValType.Name}} by key, batching and caching will be applied automatically
@@ -193,6 +194,7 @@ func (l *{{.Name}}) Clear(key {{.KeyType}}) {
 // keyIndex will return the location of the key in the batch, if its not found
 // it will add the key to the batch
 func (b *{{.Name|lcFirst}}Batch) keyIndex(l *{{.Name}}, key {{.KeyType}}) int {
+	b.waitCount++
 	for i, existingKey := range b.keys {
 		if key == existingKey {
 			return i
@@ -205,7 +207,7 @@ func (b *{{.Name|lcFirst}}Batch) keyIndex(l *{{.Name}}, key {{.KeyType}}) int {
 		go b.startTimer(l)
 	}
 
-	if l.maxBatch != 0 && pos >= l.maxBatch-1 {
+	if l.maxBatch != 0 && (pos >= l.maxBatch-1 || b.waitCount >= l.maxBatch) {
 		b.waitDone <- struct{}{}
 		b.closing = true
 		l.batch = nil
