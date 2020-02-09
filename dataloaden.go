@@ -8,7 +8,7 @@ import (
 )
 
 func main() {
-	if len(os.Args) != 4 {
+	if len(os.Args) != 5 {
 		fmt.Println("usage: name keyType valueType")
 		fmt.Println(" example:")
 		fmt.Println(" dataloaden 'UserLoader int []*github.com/my/package.User user_loader.go'")
