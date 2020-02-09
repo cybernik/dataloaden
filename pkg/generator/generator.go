@@ -78,13 +78,15 @@ func parseType(str string) (*goType, error) {
 	return t, nil
 }
 
-func Generate(name string, keyType string, valueType string, wd string) error {
+func Generate(name string, keyType string, valueType string, filename string, wd string) error {
 	data, err := getData(name, keyType, valueType, wd)
 	if err != nil {
 		return err
 	}
 
-	filename := strings.ToLower(data.Name) + "_gen.go"
+	if len(filename) == 0 {
+		filename = strings.ToLower(data.Name) + "_gen.go"
+	}
 
 	if err := writeTemplate(filepath.Join(wd, filename), data); err != nil {
 		return err
