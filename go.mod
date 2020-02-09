@@ -7,3 +7,5 @@ require (
 	github.com/stretchr/testify v1.2.1
 	golang.org/x/tools v0.0.0-20190515012406-7d7faa4812bd
 )
+
+go 1.13
