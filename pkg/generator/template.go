@@ -67,11 +67,12 @@ type {{.Name}} struct {
 }
 
 type {{.Name|lcFirst}}Batch struct {
-	keys    []{{.KeyType}}
-	data    []{{.ValType.String}}
-	error   []error
-	closing bool
-	done    chan struct{}
+	keys     []{{.KeyType}}
+	data     []{{.ValType.String}}
+	error    []error
+	closing  bool
+	done     chan struct{}
+	waitDone chan struct{}
 }
 
 // Load a {{.ValType.Name}} by key, batching and caching will be applied automatically
@@ -95,7 +96,7 @@ func (l *{{.Name}}) LoadThunk(key {{.KeyType.String}}) func() ({{.ValType.String
 
 	l.mu.Lock()
 	if l.batch == nil {
-		l.batch = &{{.Name|lcFirst}}Batch{done: make(chan struct{})}
+		l.batch = &{{.Name|lcFirst}}Batch{done: make(chan struct{}), waitDone: make(chan struct{}, 1)}
 	}
 	batch := l.batch
 	pos := batch.keyIndex(l, key)
@@ -205,20 +206,23 @@ func (b *{{.Name|lcFirst}}Batch) keyIndex(l *{{.Name}}, key {{.KeyType}}) int {
 	}
 
 	if l.maxBatch != 0 && pos >= l.maxBatch-1 {
-		if !b.closing {
-			b.closing = true
-			l.batch = nil
-			go b.end(l)
-		}
+		b.waitDone <- struct{}{}
+		b.closing = true
+		l.batch = nil
+		go b.end(l)
 	}
 
 	return pos
 }
 
 func (b *{{.Name|lcFirst}}Batch) startTimer(l *{{.Name}}) {
-	time.Sleep(l.wait)
-	l.mu.Lock()
+	select {
+	case <-time.After(l.wait):
+	case <-b.waitDone:
+		return
+	}
 
+	l.mu.Lock()
 	// we must have hit a batch limit and are already finalizing this batch
 	if b.closing {
 		l.mu.Unlock()
@@ -232,6 +236,7 @@ func (b *{{.Name|lcFirst}}Batch) startTimer(l *{{.Name}}) {
 }
 
 func (b *{{.Name|lcFirst}}Batch) end(l *{{.Name}}) {
+	close(b.waitDone)
 	b.data, b.error = l.fetch(b.keys)
 	defer close(b.done)
 
