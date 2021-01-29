@@ -77,21 +77,23 @@ type {{.Name|lcFirst}}Batch struct {
 }
 
 // Load a {{.ValType.Name}} by key, batching and caching will be applied automatically
-func (l *{{.Name}}) Load(key {{.KeyType.String}}) ({{.ValType.String}}, error) {
-	return l.LoadThunk(key)()
+func (l *{{.Name}}) Load(useCache bool, key {{.KeyType.String}}) ({{.ValType.String}}, error) {
+	return l.LoadThunk(useCache, key)()
 }
 
 // LoadThunk returns a function that when called will block waiting for a {{.ValType.Name}}.
 // This method should be used if you want one goroutine to make requests to many
 // different data loaders without blocking until the thunk is called.
-func (l *{{.Name}}) LoadThunk(key {{.KeyType.String}}) func() ({{.ValType.String}}, error) {
-	l.cacheMutex.RLock()
-	it, ok := l.cache[key]
-	l.cacheMutex.RUnlock()
+func (l *{{.Name}}) LoadThunk(useCache bool, key {{.KeyType.String}}) func() ({{.ValType.String}}, error) {
+	if useCache {
+		l.cacheMutex.RLock()
+		it, ok := l.cache[key]
+		l.cacheMutex.RUnlock()
 
-	if ok {
-		return func() ({{.ValType.String}}, error) {
-			return it, nil
+		if ok {
+			return func() ({{.ValType.String}}, error) {
+				return it, nil
+			}
 		}
 	}
 
@@ -125,11 +127,11 @@ func (l *{{.Name}}) LoadThunk(key {{.KeyType.String}}) func() ({{.ValType.String
 
 // LoadAll fetches many keys at once. It will be broken into appropriate sized
 // sub batches depending on how the loader is configured
-func (l *{{.Name}}) LoadAll(keys []{{.KeyType}}) ([]{{.ValType.String}}, []error) {
+func (l *{{.Name}}) LoadAll(useCache bool, keys []{{.KeyType}}) ([]{{.ValType.String}}, []error) {
 	results := make([]func() ({{.ValType.String}}, error), len(keys))
 
 	for i, key := range keys {
-		results[i] = l.LoadThunk(key)
+		results[i] = l.LoadThunk(useCache, key)
 	}
 
 	{{.ValType.Name|lcFirst}}s := make([]{{.ValType.String}}, len(keys))
@@ -143,10 +145,10 @@ func (l *{{.Name}}) LoadAll(keys []{{.KeyType}}) ([]{{.ValType.String}}, []error
 // LoadAllThunk returns a function that when called will block waiting for a {{.ValType.Name}}s.
 // This method should be used if you want one goroutine to make requests to many
 // different data loaders without blocking until the thunk is called.
-func (l *{{.Name}}) LoadAllThunk(keys []{{.KeyType}}) (func() ([]{{.ValType.String}}, []error)) {
+func (l *{{.Name}}) LoadAllThunk(useCache bool, keys []{{.KeyType}}) (func() ([]{{.ValType.String}}, []error)) {
 	results := make([]func() ({{.ValType.String}}, error), len(keys))
  	for i, key := range keys {
-		results[i] = l.LoadThunk(key)
+		results[i] = l.LoadThunk(useCache, key)
 	}
 	return func() ([]{{.ValType.String}}, []error) {
 		{{.ValType.Name|lcFirst}}s := make([]{{.ValType.String}}, len(keys))
